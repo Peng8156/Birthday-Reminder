@@ -64,7 +64,7 @@ def lunar_to_solar(lunar_year, month, day):
     raise ValueError(f"无法转换农历日期: {lunar_year}-{month}-{day}")
 
 def check_monthly_summary(people):
-    """功能一：每月 1 号统计本月生日"""
+    """功能一：每月 1 号统计本月生日（温柔汇总）"""
     num_days = calendar.monthrange(YEAR, MONTH)[1]
     month_dates = [datetime.date(YEAR, MONTH, d) for d in range(1, num_days + 1)]
     birthdays_this_month = []
@@ -98,21 +98,23 @@ def check_monthly_summary(people):
     birthdays_this_month.sort(key=lambda x: x["date"])
 
     if not birthdays_this_month:
-        content = f"📅 {YEAR}年{MONTH}月生日汇总\n本月家里没有人生日哦，大家安心工作~"
+        content = f"🌸 岁月静好 · {YEAR}年{MONTH}月\n\n这个月大家都在忙碌中度过，家里没有人过生日。\n祝愿家人们每一天都平安顺遂、开开心心。"
     else:
-        content = f"📅 {YEAR}年{MONTH}月生日汇总\n"
+        content = f"🌸 岁月如歌 · {YEAR}年{MONTH}月生日名单\n\n在这个美丽的月份里，我们将迎来以下家人的生日：\n\n"
         for b in birthdays_this_month:
             date_str = f"{b['date'].month}月{b['date'].day}日"
-            content += f"🎂 {b['name']}：{date_str}（{b['desc']}）\n"
-        content += "\n大家记得提前准备祝福和礼物哦！🎁"
+            content += f"🎈 {b['name']}：{date_str}（{b['desc']}）\n"
+        content += "\n让我们一起期待，提前为寿星们准备好暖暖的祝福吧。"
 
     send_webhook(content)
 
 def check_daily_advance(people):
-    """功能二：每天检查，提前 7 天（含当天）提醒"""
+    """功能二：每天检查，近期有生日的温柔提醒"""
     TODAY_DT = datetime.datetime(TODAY.year, TODAY.month, TODAY.day)
     CURRENT_LUNAR_YEAR = ZhDate.from_datetime(TODAY_DT).lunar_year
-    advance_messages = []
+    
+    today_messages = []    # 今天的寿星
+    upcoming_messages = [] # 近期过生日的家人
 
     for item in people:
         name = item["name"]
@@ -136,25 +138,40 @@ def check_daily_advance(people):
                 result, birthday_year, adjusted = lunar_to_solar(CURRENT_LUNAR_YEAR + 1, month, day)
 
         flag = (result - TODAY).days
-        # 提前 7 天触发
-        if 0 <= flag <= 7:
-            how_old = birthday_year - year
-            when = "今天" if flag == 0 else f"{flag}天后"
-            note = "（本年该农历月无三十，按廿九提醒）" if adjusted else ""
-            advance_messages.append(f"🎂 {name} {result}（{when}）过{how_old}岁生日{note}")
+        how_old = birthday_year - year
 
-    if advance_messages:
-        content = f"📅 {TODAY} 生日预警\n" + "\n".join(advance_messages)
+        # 备注（语气软化）
+        note = "（今年腊月没有三十，我们就在廿九这天为您庆祝啦）" if adjusted else ""
+
+        # 当天过生日
+        if flag == 0:
+            today_messages.append(f"🎂 今天是【{name}】的{how_old}岁生日。{note}\n\n愿岁月温柔以待，祝{name}岁岁平安，健康长寿！🎉")
+        
+        # 提前 1-7 天提醒
+        elif 1 <= flag <= 7:
+            upcoming_messages.append(f"💌 温暖的提醒：【{name}】的{how_old}岁生日就要到了，就在 {result.month}月{result.day}日。{note}")
+
+    # 如果有今天过生日的
+    if today_messages:
+        content = f"✨ 温馨时刻 · {TODAY}\n\n" + "\n\n".join(today_messages)
+        send_webhook(content)
+
+    # 如果有近期过生日的
+    if upcoming_messages:
+        content = f"🍵 岁月缓缓 · 近期生日\n\n" + "\n".join(upcoming_messages) + "\n\n大家别忘记给寿星送上最暖的祝福哦~"
         send_webhook(content)
 
 def main():
     people = json.loads(DATA)
     
-    # 1. 如果是每月 1 号，发本月汇总
-    if TODAY.day == 1:
+    # 读取环境变量：如果传了 FORCE_SUMMARY=1，就强制执行汇总（方便今天测试）
+    force_summary = os.environ.get("FORCE_SUMMARY", "0") == "1"
+    
+    # 1. 如果是每月 1 号，或者手动强制测试，发本月汇总
+    if TODAY.day == 1 or force_summary:
         check_monthly_summary(people)
         
-    # 2. 每天检查是否有人 7 天内过生日
+    # 2. 每天检查近期过生日的人
     check_daily_advance(people)
 
 if __name__ == "__main__":
