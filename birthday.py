@@ -105,7 +105,7 @@ def main():
                 )
 
         flag = (result - TODAY).days
-        if flag > 3:
+        if flag > 10:
             continue
 
         how_old = birthday_year - year
