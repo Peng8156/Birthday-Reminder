@@ -148,8 +148,8 @@ def check_daily_advance(people):
             today_messages.append(f"🎂 今天是【{name}】的{how_old}岁生日。{note}\n\n愿岁月温柔以待，祝{name}岁岁平安，健康长寿！🎉")
         
         # 提前 1-7 天提醒
-        elif 1 <= flag <= 7:
-            upcoming_messages.append(f"💌 温暖的提醒：【{name}】的{how_old}岁生日就要到了，就在 {result.month}月{result.day}日。{note}")
+        elif flag == 3:
+            upcoming_messages.append(f"💌 温暖的提醒：还有 3 天，就是【{name}】的{how_old}岁生日啦（{result.month}月{result.day}日）。{note}")
 
     # 如果有今天过生日的
     if today_messages:
