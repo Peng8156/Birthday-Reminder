@@ -8,14 +8,18 @@ import time
 import requests
 from zhdate import ZhDate
 
-WEBHOOK_URL = os.environ["WEBHOOK_URL"]
-DATA = os.environ["DATA"]
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
+DATA = os.environ.get("DATA", "")
 
 TODAY = datetime.date.today()
 YEAR = TODAY.year
 MONTH = TODAY.month
 
 def send_webhook(content):
+    if not WEBHOOK_URL:
+        print("❌ 错误：没有找到 WEBHOOK_URL 环境变量！")
+        return
+        
     body = {
         "msgtype": "text",
         "text": {"content": content},
@@ -27,13 +31,13 @@ def send_webhook(content):
             resp.raise_for_status()
             result = resp.json()
             if result.get("errcode") == 0:
-                print(f"发送成功:\n{content}")
+                print(f"✅ 发送成功:\n{content}\n")
                 return
             last_error = result
         except Exception as e:
             last_error = e
         time.sleep(2)
-    raise RuntimeError(f"发送最终失败: {last_error}")
+    print(f"❌ 发送最终失败: {last_error}")
 
 def get_lunar_str(month, day):
     """格式化农历文本，例如 8-15 -> 八月十五"""
@@ -65,6 +69,7 @@ def lunar_to_solar(lunar_year, month, day):
 
 def check_monthly_summary(people):
     """功能一：每月 1 号统计本月生日（温柔汇总）"""
+    print(f"📅 正在生成 {YEAR}年{MONTH}月 的生日汇总...")
     num_days = calendar.monthrange(YEAR, MONTH)[1]
     month_dates = [datetime.date(YEAR, MONTH, d) for d in range(1, num_days + 1)]
     birthdays_this_month = []
@@ -110,6 +115,7 @@ def check_monthly_summary(people):
 
 def check_daily_advance(people):
     """功能二：每天检查，近期有生日的温柔提醒"""
+    print("🔍 正在检查今天和3天后是否有家人生日...")
     TODAY_DT = datetime.datetime(TODAY.year, TODAY.month, TODAY.day)
     CURRENT_LUNAR_YEAR = ZhDate.from_datetime(TODAY_DT).lunar_year
     
@@ -147,31 +153,59 @@ def check_daily_advance(people):
         if flag == 0:
             today_messages.append(f"🎂 今天是【{name}】的{how_old}岁生日。{note}\n\n愿岁月温柔以待，祝{name}岁岁平安，健康长寿！🎉")
         
-        # 提前 1-7 天提醒
-        elif 1 <= flag <= 7:
-            upcoming_messages.append(f"💌 温暖的提醒：【{name}】的{how_old}岁生日就要到了，就在 {result.month}月{result.day}日。{note}")
+        # 提前 3 天提醒
+        elif flag == 3:
+            upcoming_messages.append(f"⏳ 倒计时 3 天：【{name}】的{how_old}岁生日将在 {result.month}月{result.day}日到来啦！{note}")
 
     # 如果有今天过生日的
     if today_messages:
         content = f"✨ 温馨时刻 · {TODAY}\n\n" + "\n\n".join(today_messages)
         send_webhook(content)
+    else:
+        print("   - 今天没有家人生日。")
 
     # 如果有近期过生日的
     if upcoming_messages:
-        content = f"🍵 岁月缓缓 · 近期生日\n\n" + "\n".join(upcoming_messages) + "\n\n大家别忘记给寿星送上最暖的祝福哦~"
+        content = f"🍵 岁月缓缓 · 生日预告\n\n" + "\n".join(upcoming_messages) + "\n\n大家别忘记给寿星送上最暖的祝福哦~"
         send_webhook(content)
+    else:
+        print("   - 3天后没有家人生日。")
 
 def main():
-    people = json.loads(DATA)
+    if not DATA:
+        print("❌ 错误：没有找到 DATA 环境变量！")
+        return
+
+    try:
+        people = json.loads(DATA)
+    except Exception as e:
+        print(f"❌ 错误：DATA 环境变量不是合法的 JSON 格式！错误详情: {e}")
+        return
     
-    # 读取环境变量：如果传了 FORCE_SUMMARY=1，就强制执行汇总（方便今天测试）
+    # 读取环境变量：如果传了 FORCE_SUMMARY=1，就强制执行汇总（方便测试）
     force_summary = os.environ.get("FORCE_SUMMARY", "0") == "1"
     
+    # --- 时间安全锁（防 GitHub 排队到半夜发消息） ---
+    # 获取当前北京时间
+    now_utc = datetime.datetime.utcnow()
+    now_beijing = now_utc + datetime.timedelta(hours=8)
+    current_hour = now_beijing.hour
+
+    print(f"⏰ 当前北京时间：{now_beijing.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    if force_summary:
+        print("⚠️ 检测到 FORCE_SUMMARY=1，跳过时间锁，强制发送汇总消息！")
+    else:
+        # 如果不是在早上 7 点到 12 点之间，直接退出，防止半夜发消息
+        if current_hour < 7 or current_hour > 12:
+            print(f"💤 当前时间 {current_hour} 点，不在 7:00-12:00 提醒时段内，任务静默退出。")
+            return
+
     # 1. 如果是每月 1 号，或者手动强制测试，发本月汇总
     if TODAY.day == 1 or force_summary:
         check_monthly_summary(people)
         
-    # 2. 每天检查近期过生日的人
+    # 2. 每天检查近期过生日的人 (如果不是强制测试，或者就算强制测试也顺便查一下今天有没有人)
     check_daily_advance(people)
 
 if __name__ == "__main__":
