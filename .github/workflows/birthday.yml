@@ -25,5 +25,5 @@ jobs:
         env:
           DATA: ${{ secrets.DATA }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
-          FORCE_SUMMARY: ${{ vars.FORCE_SUMMARY }}
+          FORCE_SUMMARY: '1'
         run: python birthday.py
