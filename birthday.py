@@ -155,7 +155,7 @@ def check_daily_advance(people):
         
         # 提前 3 天提醒
         elif flag == 3:
-            upcoming_messages.append(f"⏳ 倒计时 3 天：【{name}】的{how_old}岁生日将在 {result.month}月{result.day}日到来啦！{note}")
+            upcoming_messages.append(f"⏳ 还有 3 天：【{name}】的{how_old}岁生日将在 {result.month}月{result.day}日到来啦！{note}")
 
     # 如果有今天过生日的
     if today_messages:
